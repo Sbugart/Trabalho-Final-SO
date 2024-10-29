@@ -1,8 +1,6 @@
 #include "escalonamento.h"
 #include <chrono>
 #include <thread>
-#include <chrono>
-#include <thread>
 
 void RR(vector<processos> &programa, int quantum){
     int tempo_atual = 0, aux, pos = 0, flag = 1;
@@ -15,7 +13,6 @@ void RR(vector<processos> &programa, int quantum){
     fila.push(&programa[pos]);
     programa[pos].estado = "Pronto";
     cout << "Processo " << programa[pos].id << " está Pronto...\n";
-    programa[pos].estado = "Pronto";
     pos++;
 
     for (int i = 0; i < (int)programa.size(); i++) tempo_restante[i] = programa[i].duracao;
@@ -38,7 +35,6 @@ void RR(vector<processos> &programa, int quantum){
             wt[aux] = tat[aux] - programa[aux].duracao;
             programa[aux].estado = "Finalizado";
             cout << "Processo " << programa[aux].id << " está Finalizado...\n";
-            cout << "Processo " << programa[aux].id << "está Finalizado...\n";
             flag = 0;
         }
 
@@ -47,8 +43,6 @@ void RR(vector<processos> &programa, int quantum){
                 fila.push(&programa[i]);
                 programa[i].estado = "Pronto";
                 cout << "Processo " << programa[aux].id << " está Pronto...\n";
-                programa[i].estado = "Pronto";
-                cout << "Processo " << programa[aux].id << "está Pronto...\n";
                 pos++;
             }
             else{
@@ -64,11 +58,6 @@ void RR(vector<processos> &programa, int quantum){
             fila.push(&programa[aux]);
             programa[aux].estado = "Suspenso";
             cout << "Processo " << programa[aux].id << " está Suspenso...\n";
-        }
-        if(flag){
-            fila.push(&programa[aux]);
-            programa[aux].estado = "Suspenso";
-            cout << "Processo " << programa[aux].id << "está Suspenso...\n";
         }
         else flag = 1;
     }
