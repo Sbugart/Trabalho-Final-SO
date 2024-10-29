@@ -2,6 +2,7 @@
 
 processos cria_process(int duracao, int inicio){
     processos novo(duracao, inicio);
+    cout << "Um novo processo foi criado" << endl;
     return novo;
 }
 
