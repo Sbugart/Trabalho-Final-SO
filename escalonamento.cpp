@@ -1,6 +1,8 @@
 #include "escalonamento.h"
 #include <chrono>
 #include <thread>
+#include <chrono>
+#include <thread>
 
 void RR(vector<processos> &programa, int quantum){
     int tempo_atual = 0, aux, pos = 0, flag = 1;
@@ -11,6 +13,8 @@ void RR(vector<processos> &programa, int quantum){
 
     tempo_atual += programa[pos].start_time;
     fila.push(&programa[pos]);
+    programa[pos].estado = "Pronto";
+    cout << "Processo " << programa[pos].id << " está Pronto...\n";
     programa[pos].estado = "Pronto";
     pos++;
 
@@ -24,14 +28,16 @@ void RR(vector<processos> &programa, int quantum){
         tempo_restante[aux] -= execucao;
         tempo_atual += execucao;
         programa[aux].estado = "Executando";
-        cout << "Processo " << programa[aux].id << "está Executando...\n";
-        thisthread::sleepfor(chrono::seconds(execucao))
+        cout << "Processo " << programa[aux].id << " está Executando...\n";
+        this_thread::sleep_for(chrono::seconds(execucao));
+
         
         if(tempo_restante[aux] == 0){
             programa[aux].end_time = tempo_atual;
             tat[aux] = tempo_atual - programa[aux].start_time;
             wt[aux] = tat[aux] - programa[aux].duracao;
             programa[aux].estado = "Finalizado";
+            cout << "Processo " << programa[aux].id << " está Finalizado...\n";
             cout << "Processo " << programa[aux].id << "está Finalizado...\n";
             flag = 0;
         }
@@ -39,6 +45,8 @@ void RR(vector<processos> &programa, int quantum){
         for(int i = pos; i < (int)programa.size(); ++i){
             if(programa[i].start_time <= tempo_atual){
                 fila.push(&programa[i]);
+                programa[i].estado = "Pronto";
+                cout << "Processo " << programa[aux].id << " está Pronto...\n";
                 programa[i].estado = "Pronto";
                 cout << "Processo " << programa[aux].id << "está Pronto...\n";
                 pos++;
@@ -52,6 +60,11 @@ void RR(vector<processos> &programa, int quantum){
             }
         }
 
+        if(flag){
+            fila.push(&programa[aux]);
+            programa[aux].estado = "Suspenso";
+            cout << "Processo " << programa[aux].id << " está Suspenso...\n";
+        }
         if(flag){
             fila.push(&programa[aux]);
             programa[aux].estado = "Suspenso";
