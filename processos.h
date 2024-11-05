@@ -4,6 +4,10 @@
 #include <bits/stdc++.h>
 using namespace std;
 
+/* Váriavel global que armazena a quantidade espaço
+de memória que será usada para armazenar as mensagens.*/
+const int MEM_LENGTH = 100;
+
 /**
  * @brief Definição da struct processos
  * @param id Identificador criado para o processo.
@@ -11,6 +15,8 @@ using namespace std;
  * @param start_time Tempo de início do processo.
  * @param end_time Tempo de finalização do processo.
  * @param estado Estado do processo no processador.
+ * @param pipe_menssenger Pipe que guarda o processo remetente das mensagens.
+ * @param pipe_message Pipe que guarda as mensagens para o respectivo processo.
  */
 struct processos{
     int id;
@@ -18,6 +24,8 @@ struct processos{
     int start_time;
     int end_time;
     string estado;
+    queue<int> pipe_messenger;
+    queue<string> pipe_message;
 
     processos(int duracao, int inicio) : duracao(duracao), start_time(inicio), estado("Novo") {};
 };

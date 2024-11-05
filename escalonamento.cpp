@@ -1,37 +1,105 @@
 #include "escalonamento.h"
-#include <chrono>
-#include <thread>
+
+void pipe(vector<processos> *process, escalonador *escalona, int pos){
+    string resposta = "Enviando arquivo\n";
+    string mensagem = "Processo " + to_string((*process)[pos].id) + " solicitou arquivo\n";
+    for(int i = 0; i < (*process)[pos].pipe_messenger.size(); i++){
+        if((*process)[pos].pipe_message.front().compare(resposta) != 0){
+            (*process)[(*process)[pos].pipe_messenger.front() - 1].pipe_message.push(resposta);
+            (*process)[(*process)[pos].pipe_messenger.front() - 1].pipe_messenger.push((*process)[pos].id);
+        }
+        cout << "Processo " << (*process)[pos].id << " recebeu a mensagem do processo " << (*process)[(*process)[pos].pipe_messenger.front() - 1].id << endl;
+        (*process)[pos].pipe_message.pop();
+        (*process)[pos].pipe_messenger.pop();
+    }
+
+    queue<processos*> temp_queue = (*escalona).fila;
+    for (int i = 0; i < (int)(*escalona).fila.size(); i++) {
+        processos *p = temp_queue.front();
+        temp_queue.pop();
+        (*p).pipe_message.push(mensagem);
+        (*p).pipe_messenger.push((*process)[pos].id);
+        cout << "Processo " << (*process)[pos].id << " enviou uma mensagem para " << (*p).id << endl;
+    }
+}
+
+void enviar_mensagem(processos *process, escalonador *escalona, int *pos, processos* p){
+    string mensagem = "Processo " + to_string((*process).id) + " solicitou arquivo\n";
+
+    while(*pos <= MEM_LENGTH - 1){
+        if((*escalona).usado[*pos] != 0) (*pos)++;
+        else break;
+    }
+    if(*pos > MEM_LENGTH - 1){
+        cout << "Espaço de memória lotado" << endl;
+        return; 
+    }
+    (*escalona).memoria_mensagens[*pos] = mensagem;
+    (*escalona).usado[*pos] = (*process).id;
+    (*escalona).receber[*pos] = p->id;
+    cout << "Processo " << (*process).id << " enviou uma mensagem para " << p->id << endl;
+}
+
+void recebe(vector<processos> *process, escalonador *escalona,int pos, int pos_pro){
+    string resposta = "Enviando arquivo\n";
+    if((*escalona).memoria_mensagens[pos].compare(resposta) && 
+    ((*process)[(*escalona).usado[pos] - 1].estado.compare("Finalizado") != 0)){
+        (*escalona).memoria_mensagens[pos] = resposta;
+        cout << "Processo " << (*process)[pos_pro].id << " recebeu a mensagem do processo " << (*escalona).usado[pos] << endl;
+        (*escalona).receber[pos] = (*escalona).usado[pos];
+        (*escalona).usado[pos] = (*process)[pos_pro].id;
+    }
+    else{
+        (*escalona).usado[pos] = 0;
+        (*escalona).receber[pos] = -1;
+    }   
+}
+
+void mem_comp(vector<processos> *process, escalonador *escalona, int pos_pro){
+    int tamanho = (int)(*escalona).fila.size(), pos = 0;
+    queue<processos*> temp_queue = (*escalona).fila;
+    for(int i = 0; i < MEM_LENGTH; i++){
+        if((*escalona).receber[i] == (*process)[pos_pro].id) recebe(process, escalona, i, pos_pro);
+    }
+    for (int i = 0; i < tamanho; i++) {
+        processos *p = temp_queue.front();
+        temp_queue.pop();
+        enviar_mensagem(&(*process)[pos_pro], escalona, &pos, p);
+    }
+}
+
+int executa(int quantum, int *tempo_restante, vector<processos> *process, escalonador *escalona, int pos){
+    int execucao = min(quantum, *tempo_restante);
+    *tempo_restante -= execucao;
+    (*process)[pos].estado = "Executando";
+    cout << "Processo " << (*process)[pos].id << " está Executando...\n";
+    Sleep(execucao * 100);
+
+    //mem_comp(process, escalona, pos);
+    pipe(process, escalona, pos);
+
+    return execucao;
+}
 
 void RR(vector<processos> &programa, int quantum){
     int tempo_atual = 0, aux, pos = 0, flag = 1;
-    vector<int> wt (programa.size(), 0);
-    vector<int> tat (programa.size(), 0);
-    vector<int> tempo_restante (programa.size(), 0);
-    queue<processos*> fila;
+    escalonador escalona(programa.size(), programa);
 
     tempo_atual += programa[pos].start_time;
-    fila.push(&programa[pos]);
+    escalona.fila.push(&programa[pos]);
     programa[pos].estado = "Pronto";
-    cout << "Processo " << programa[pos].id << " está Pronto...\n";
-    pos++;
+    cout << "Processo " << programa[pos++].id << " está Pronto...\n";
 
-    for (int i = 0; i < (int)programa.size(); i++) tempo_restante[i] = programa[i].duracao;
+    while(!escalona.fila.empty() || pos != (int) programa.size()){
+        aux = escalona.fila.front()->id - 1;
+        escalona.fila.pop();
 
-    while(!fila.empty() || pos != (int) programa.size()){
-        aux = fila.front()->id - 1;
-        fila.pop();
+        tempo_atual += executa(quantum, &escalona.tempo_restante[aux], &programa, &escalona, aux);
 
-        int execucao = min(quantum, tempo_restante[aux]);
-        tempo_restante[aux] -= execucao;
-        tempo_atual += execucao;
-        programa[aux].estado = "Executando";
-        cout << "Processo " << programa[aux].id << " está Executando...\n";
-        this_thread sleep_for(chrono::seconds(execucao));
-        
-        if(tempo_restante[aux] == 0){
+        if(escalona.tempo_restante[aux] == 0){
             programa[aux].end_time = tempo_atual;
-            tat[aux] = tempo_atual - programa[aux].start_time;
-            wt[aux] = tat[aux] - programa[aux].duracao;
+            escalona.tat[aux] = tempo_atual - programa[aux].start_time;
+            escalona.wt[aux] = escalona.tat[aux] - programa[aux].duracao;
             programa[aux].estado = "Finalizado";
             cout << "Processo " << programa[aux].id << " está Finalizado...\n";
             flag = 0;
@@ -39,22 +107,21 @@ void RR(vector<processos> &programa, int quantum){
 
         for(int i = pos; i < (int)programa.size(); ++i){
             if(programa[i].start_time <= tempo_atual){
-                fila.push(&programa[i]);
+                escalona.fila.push(&programa[i]);
                 programa[i].estado = "Pronto";
-                cout << "Processo " << programa[aux].id << " está Pronto...\n";
+                cout << "Processo " << programa[i].id << " está Pronto...\n";
                 pos++;
             }
             else{
-                if(fila.empty()){
-                    tempo_atual = programa[i].start_time;
-                    i--;
-                }
+                if(escalona.fila.empty() && !flag) tempo_atual = programa[i--].start_time;
+                //Eu coloquei o flag aqui, pois notei q sem isso ele vai adicionar
+                // um novo processo dps do primeiro executar e ainda n voltar para a fila.
                 else break;
             }
         }
 
         if(flag){
-            fila.push(&programa[aux]);
+            escalona.fila.push(&programa[aux]);
             programa[aux].estado = "Suspenso";
             cout << "Processo " << programa[aux].id << " está Suspenso...\n";
         }
@@ -65,6 +132,6 @@ void RR(vector<processos> &programa, int quantum){
     cout << "-----------------------------" << endl;
     cout << "Tempo levado para executar o programa: " << tempo_atual << endl;
     for(int i = 0; i < (int)programa.size(); ++i){
-        cout << "Waiting: "<< wt[i] << " || " << "Tat: " << tat[i] << endl;
+        cout << "Waiting: "<< escalona.wt[i] << " || " << "Tat: " << escalona.tat[i] << endl;
     }
 } 
