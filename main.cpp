@@ -1,5 +1,11 @@
 #include "escalonamento.h"
 
+const int MEM_LENGTH = 100;
+const int PG_LENGTH = 4000; 
+int mem_usada = 0; 
+vector<int> Memoria_Principal(24000);
+vector<int> Memoria_Secundaria;
+
 int main(){
 
     int quantum = 5, quantidade_processos = 3;

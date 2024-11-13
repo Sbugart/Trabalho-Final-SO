@@ -78,6 +78,12 @@ int executa(int quantum, int *tempo_restante, vector<processos> *process, escalo
     //mem_comp(process, escalona, pos);
     pipe(process, escalona, pos);
 
+    //parte que envolve a memória do nosso processo
+    cout << "Acessando memoria" << endl;
+    acessa_memoria(process, pos, *tempo_restante);
+    cout << "Adicionando pagina para o processo " << (*process)[pos].id << endl;
+    //adiciona_pg(process, pos, (int)(*process)[pos].Tabela_paginacao.size() - 1, *tempo_restante, false);
+
     return execucao;
 }
 
@@ -100,6 +106,15 @@ void RR(vector<processos> &programa, int quantum){
             programa[aux].end_time = tempo_atual;
             escalona.tat[aux] = tempo_atual - programa[aux].start_time;
             escalona.wt[aux] = escalona.tat[aux] - programa[aux].duracao;
+            for(int i = 0; i < programa[aux].numero_paginas; i++){
+                if(programa[aux].Tabela_paginacao.back()->presente){
+                    cout << "Removendo pagina " << programa[aux].Tabela_paginacao.back()->id
+                    << " do adress: " << programa[aux].Tabela_paginacao.back()->adress / PG_LENGTH << endl;
+                    mem_usada ^= (1 << programa[aux].Tabela_paginacao.back()->adress / PG_LENGTH); 
+                    
+                }
+                programa[aux].Tabela_paginacao.pop_back();
+            }
             programa[aux].estado = "Finalizado";
             cout << "Processo " << programa[aux].id << " está Finalizado...\n";
             flag = 0;

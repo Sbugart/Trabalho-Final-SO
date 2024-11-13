@@ -4,9 +4,53 @@
 #include <bits/stdc++.h>
 using namespace std;
 
-/* Váriavel global que armazena a quantidade espaço
-de memória que será usada para armazenar as mensagens.*/
-const int MEM_LENGTH = 100;
+/*  Váriavel global que armazena a quantidade espaço
+de memória que será usada para armazenar as mensagens. */
+extern const int MEM_LENGTH;
+
+/*  Váriavel que informa qual é o tamanho de cada página */
+extern const int PG_LENGTH;
+
+/*  Quantidade de memória usada (com operações bitwise para controle de bits) */
+extern int mem_usada;
+
+/*  Vetor que simula o espaço na memória RAM */
+extern vector<int> Memoria_Principal;
+
+/*  Vetor que simula o espaço na memória secundária */
+extern vector<int> Memoria_Secundaria;
+
+/**
+ * @brief Definição da struct da página.
+ * @param id Identificador da página.
+ * @param presente Booleano que informa se a página está presente
+ * na memória RAM ou memória secundária.
+ * @param adress Endereço da nossa página.
+ * @param ultimo_acesso Variável que informa quando foi o último 
+ * momento em que a página foi acessada.
+*/
+struct pagina
+{
+    int id; //Id da pagina
+    bool presente; // informa se está na memoria RAM 
+    int adress;
+    int ultimo_acesso;
+};
+
+/**
+ * @brief Definição da struct endereco
+ * @details Esta struct é utilizada como um auxilio para o retorno
+ * de algumas funções que precisa retornar um endereço de memória, 
+ * diferenciando se ele está presente na RAM ou na memória secundária.
+ * @param adress Endereço da memória, independente do tipo de memória.
+ * @param pertence Variável utilizada para informar se o adress pertence
+ * a memória RAM ou memória secundária.
+*/
+struct endereco
+{
+    int adress;
+    int pertence;
+};
 
 /**
  * @brief Definição da struct processos
@@ -17,17 +61,22 @@ const int MEM_LENGTH = 100;
  * @param estado Estado do processo no processador.
  * @param pipe_menssenger Pipe que guarda o processo remetente das mensagens.
  * @param pipe_message Pipe que guarda as mensagens para o respectivo processo.
+ * @param numero_paginas Informa quantas paginas o processo necessita.
+ * @param Tabela_paginacao É a tabela de paginação referente ao processo.
  */
 struct processos{
     int id;
     int duracao;
     int start_time;
     int end_time;
+    int numero_paginas;
     string estado;
     queue<int> pipe_messenger;
     queue<string> pipe_message;
+    vector<pagina*> Tabela_paginacao;
 
-    processos(int duracao, int inicio) : duracao(duracao), start_time(inicio), estado("Novo") {};
+    processos(int duracao, int inicio) : 
+    duracao(duracao), start_time(inicio), estado("Novo") {};
 };
 
 /**
@@ -35,9 +84,10 @@ struct processos{
  * @details Cria os processos.
  * @param duracao Tempo de duração do processo.
  * @param inicio Tempo de início do processo.
+ * @param quantidade_paginas Guarda a quantidade de paginas que o processo ocupará
  * @return Retorna um novo processo.
  */
-processos cria_process(int duracao, int inicio);
+processos cria_process(int duracao, int inicio, int quantidade_paginas);
 
 /**
  * @brief Inicializa o programa.
@@ -46,5 +96,64 @@ processos cria_process(int duracao, int inicio);
  * @return Retorna o programa a ser escalonado.
  */
 vector<processos> inicia_programa(int quantidade_processos);
+
+/**
+ * @brief Cria uma nova página.
+ * @return Retorna um ponteiro para uma nova página.
+ */
+pagina *cria_pg();
+
+/**
+ * @brief Adiciona uma página à tabela de paginação de um processo.
+ * @param programa Vetor que possui os processos do nosso programa.
+ * @param process_id ID do processo.
+ * @param page_id ID da página.
+ * @param time Tempo atual no programa.
+ * @param inicializacao Indica se é na inicialização do processo.
+ */
+void adiciona_pg(vector<processos> *programa, int process_id, int page_id, int time, bool inicializacao);
+
+/**
+ * @brief Insere valor na memória.
+ * @param RAM_adress Endereço na memória RAM.
+ * @param mem_sec_adress Endereço na memória secundária.
+ * @param inicializacao Indica se é na inicialização do processo.
+ */
+void insere_valor(int RAM_adress, int mem_sec_adress, bool inicializacao);
+
+/**
+ * @brief Função de page fault que busca um espaço livre.
+ * @param programa Vetor que possui os processos do nosso programa.
+ * @param process_id ID do processo.
+ * @param page_id ID da página.
+ * @param tempo Tempo atual no programa.
+ * @param inicializacao Indica se é na inicialização do processo.
+ * @return Retorna um endereço de memória.
+ */
+endereco page_fault(vector<processos> *programa, int process_id, int page_id, int tempo, bool inicializacao);
+
+/**
+ * @brief Procura um espaço livre na RAM para uma página
+ * @details Caso não haja espaço na memória RAM, ele chama a função
+ * page_fault para tentar inserir a página no lugar de uma página antiga.
+ * @param programa Vetor que possui os processos do nosso programa.
+ * @param process_id ID do processo.
+ * @param page_id ID da página.
+ * @param tempo Tempo atual no programa.
+ * @param inicializacao Indica se é na inicialização do processo.
+ * @return Retorna um endereço de memória.
+ */
+endereco procura_espaco_na_RAM(vector<processos> *programa, int process_id, int page_id, int tempo, bool inicializacao);
+
+/**
+ * @brief Acessa a memória de um processo, simulando a leitura.
+ * @details Caso a pagina não esteja presente na RAM, ele chama
+ * a page_fault para arrumar isso.
+ * @param programa Vetor de processos.
+ * @param process_id ID do processo.
+ * @param tempo Tempo atual no programa.
+ */
+void acessa_memoria(vector<processos> *programa, int process_id, int tempo);
+
 
 #endif 
