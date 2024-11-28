@@ -1,0 +1,30 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "type": "cppbuild",
+            "label": "C/C++: g++.exe arquivo de build ativo",
+            "command": "c:\\msys64\\ucrt64\\bin\\g++.exe",  // Alterado para g++.exe
+            "args": [
+                "-fdiagnostics-color=always",
+                "-Wall",
+                "-Wextra",
+                "-g",
+                "\"${workspaceFolder}\\*.cpp\"",
+                "-o",
+                "\"${fileDirname}\\${fileBasenameNoExtension}.exe\""
+            ],
+            "options": {
+                "cwd": "c:\\msys64\\ucrt64\\bin"
+            },
+            "problemMatcher": [
+                "$gcc"
+            ],
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            },
+            "detail": "compilador: c:\\msys64\\ucrt64\\bin\\g++.exe"
+        }
+    ]
+}

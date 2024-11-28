@@ -1,5 +1,5 @@
-#ifndef _processos_h_
-#define _processos_h_
+#ifndef _Process_manager_h_
+#define _Process_manager_h_
 
 #include <bits/stdc++.h>
 using namespace std;
@@ -11,6 +11,11 @@ extern const int MEM_LENGTH;
 /*  Váriavel que informa qual é o tamanho de cada página */
 extern const int PG_LENGTH;
 
+/*  Váriavel que informa qual é a quantidade de recursos disponível*/
+extern const int quantidade_de_recursos;
+
+extern const int quantidade_de_nucleos;
+
 /*  Quantidade de memória usada (com operações bitwise para controle de bits) */
 extern int mem_usada;
 
@@ -19,6 +24,9 @@ extern vector<int> Memoria_Principal;
 
 /*  Vetor que simula o espaço na memória secundária */
 extern vector<int> Memoria_Secundaria;
+
+/*  Vetor que simula a quantidade disponível de recursos*/
+extern vector<int> recursos;
 
 /**
  * @brief Definição da struct da página.
@@ -53,6 +61,20 @@ struct endereco
 };
 
 /**
+ * @brief 
+ * @details 
+ * @param 
+ * @param
+*/
+struct tempo_recurso
+{
+    int recurso;
+    int inicio_esperado;
+    int duracao;
+    int inicio_definitivo;
+};
+
+/**
  * @brief Definição da struct processos
  * @param id Identificador criado para o processo.
  * @param duracao Tempo de duração do proceso.
@@ -70,10 +92,16 @@ struct processos{
     int start_time;
     int end_time;
     int numero_paginas;
+    int posicao_tempo_recursos; // Inteiro que armazena 
     string estado;
     queue<int> pipe_messenger;
     queue<string> pipe_message;
     vector<pagina*> Tabela_paginacao;
+    vector<int> recursos; // Vetor de recursos do processo
+    vector<int> alocado; // Vetor de recursos que guarda quanto de cada recurso está alocado para este processo
+    vector<int> precisa; // Vetor de recursos que guarda quanto que cada recurso precisa
+    vector<tempo_recurso> tempo_recursos; // Vetor que guarda quando que um recurso será solicitado, e a sua duracao
+    vector<int> solicitados; // Vetor que guarda a quantidade de cada recurso q o processo solicita o uso no momento
 
     processos(int duracao, int inicio) : 
     duracao(duracao), start_time(inicio), estado("Novo") {};
@@ -155,5 +183,10 @@ endereco procura_espaco_na_RAM(vector<processos> *programa, int process_id, int 
  */
 void acessa_memoria(vector<processos> *programa, int process_id, int tempo);
 
+void define_espaco_recursos(vector<int> *recursos, int max);
+
+void inicializa_recursos_processos(processos *novo);
+
+void define_tempo_recursos(vector<tempo_recurso> *tempos, int recurso, int quant_a_alocar,int duracao_process, int inicio_process);
 
 #endif 

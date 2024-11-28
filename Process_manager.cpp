@@ -1,16 +1,16 @@
-#include "escalonamento.h"
+#include "Scheduler.h"
 
 processos cria_process(int duracao, int inicio, int quantidade_paginas){
     processos novo(duracao, inicio);
     novo.numero_paginas = quantidade_paginas;
     cout << "Um novo processo foi criado com " << quantidade_paginas << " paginas" << endl;
+    inicializa_recursos_processos(&novo);
     return novo;
 }
 
 vector<processos> inicia_programa(int quantidade_processos){
     vector<processos> programa;
     int duracao, inicio, quant_pgs;
-    srand(time(0));
 
     for(int i = 0; i < quantidade_processos; i++){
         duracao = 1 + rand() % 25;
@@ -118,7 +118,7 @@ endereco procura_espaco_na_RAM(vector<processos> *programa, int process_id, int 
 
 void acessa_memoria(vector<processos> *programa, int process_id, int tempo){
     int quant_pgs = (*programa)[process_id].Tabela_paginacao.size();
-    srand(time(0));
+    
     int pgs_acessadas = rand() % quant_pgs + 1; //Quantidade de paginas que o processo vai acessar
     for(int i = 0; i < pgs_acessadas; i++){
         if((*programa)[process_id].Tabela_paginacao[i]->presente){
@@ -135,4 +135,42 @@ void acessa_memoria(vector<processos> *programa, int process_id, int tempo){
             (*programa)[process_id].Tabela_paginacao[i]->presente = espaco.pertence;
         }
     }
+}
+
+void define_espaco_recursos(vector<int> *recurso, int max){
+    if(max == 4) srand(time(0));
+    for(int i = 0; i < (int)quantidade_de_recursos; i++){
+        (*recurso).push_back(3 + rand() % max);
+        if((*recurso)[i] > recursos[i])((*recurso)[i] = recursos[i]);
+    }
+}
+
+void inicializa_recursos_processos(processos *novo){
+    define_espaco_recursos(&(*novo).recursos, 7);
+    cout << "Quantidade por recurso utilizada do processo eh: ( " << (*novo).recursos[0];
+    for(int i = 0; i < (int)quantidade_de_recursos; i++){
+        define_tempo_recursos(&(*novo).tempo_recursos, i, (*novo).recursos[i],(*novo).duracao, (*novo).start_time);
+        (*novo).alocado.push_back(0);
+        (*novo).solicitados.push_back(0); 
+        (*novo).precisa.push_back((*novo).recursos[i] - (*novo).alocado.back());
+        if(i != 0) cout << " , " << (*novo).recursos[i];
+    }
+    cout << " )" << endl;
+    sort((*novo).tempo_recursos.begin(), (*novo).tempo_recursos.end(), [] (tempo_recurso a, tempo_recurso b) {
+        return a.inicio_esperado < b.inicio_esperado;
+    });
+}
+
+void define_tempo_recursos(vector<tempo_recurso> *tempos, int recurso, int quant_a_alocar,int duracao_process, int inicio_process){
+    tempo_recurso aux;
+    aux.recurso = recurso;
+    while(quant_a_alocar != 0){
+        aux.inicio_definitivo = -1;
+        aux.inicio_esperado = inicio_process + rand() % (duracao_process);
+        int tempo_que_ele_pode_rodar = duracao_process - (aux.inicio_esperado - inicio_process);
+        aux.duracao = rand() % ((tempo_que_ele_pode_rodar) / 3 + 2);
+        (*tempos).push_back(aux);
+        quant_a_alocar--;
+    }
+    
 }
