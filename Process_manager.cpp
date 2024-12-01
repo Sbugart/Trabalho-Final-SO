@@ -1,176 +1,102 @@
-#include "Scheduler.h"
+#include "Process_manager.h"  // Inclusão do cabeçalho que define a estrutura e funções relacionadas aos processos
+#include "Resource_manager.h" // Inclusão do cabeçalho que define a estrutura e funções relacionadas aos recursos
+#include "OS.h"               // Inclusão do cabeçalho que define o sistema operacional
+#include "Scheduler.h"        // Inclusão do cabeçalho que define o escalonador
+#include "Paging.h"           // Inclusão do cabeçalho que define a paginação e gerenciamento de memória
 
-processos cria_process(int duracao, int inicio, int quantidade_paginas){
-    processos novo(duracao, inicio);
-    novo.numero_paginas = quantidade_paginas;
+// Função para criar um novo processo com duração, tempo de início e número de páginas especificados
+processos cria_process(int duracao, int inicio, int quantidade_paginas, SistemaOperacional &SO) {
+    processos novo(duracao, inicio);  // Criação de um novo processo com a duração e o tempo de início fornecidos
+    novo.numero_paginas = quantidade_paginas;  // Definição do número de páginas para o processo
     cout << "Um novo processo foi criado com " << quantidade_paginas << " paginas" << endl;
-    inicializa_recursos_processos(&novo);
-    return novo;
+    
+    inicializa_recursos_processos(&novo, SO);  // Inicializa os recursos necessários para o processo
+    return novo;  // Retorna o novo processo criado
 }
 
-vector<processos> inicia_programa(int quantidade_processos){
-    vector<processos> programa;
-    int duracao, inicio, quant_pgs;
+// Função para inicializar o programa (vetor de processos)
+vector<processos> inicia_programa(SistemaOperacional &SO) {
+    vector<processos> programa;  // Vetor para armazenar os processos a serem criados
+    int duracao, inicio, quant_pgs;  // Variáveis auxiliares para armazenar os atributos de cada processo
 
-    for(int i = 0; i < quantidade_processos; i++){
-        duracao = 1 + rand() % 25;
-        inicio = rand() % 20;
-        quant_pgs = (rand() % 2 + 1);
-        programa.push_back(cria_process(duracao, inicio, quant_pgs));
+    // Criação dos processos com duração, tempo de início e número de páginas aleatórios
+    for(int i = 0; i < SO.quantidade_de_processos; i++) {
+        duracao = 1 + rand() % 25;  // Duração aleatória do processo (de 1 a 25)
+        inicio = rand() % 20;       // Tempo de início aleatório (de 0 a 19)
+        quant_pgs = (rand() % 2 + 1); // Número de páginas aleatório (1 ou 2)
+        programa.push_back(cria_process(duracao, inicio, quant_pgs, SO));  // Criação e adição do processo ao vetor
     }
 
-    sort(programa.begin(), programa.end(), [] (processos a, processos b){
-        return a.start_time < b.start_time;
+    // Ordenação dos processos com base no tempo de início
+    sort(programa.begin(), programa.end(), [] (processos a, processos b) {
+        return a.start_time < b.start_time;  // Ordena em ordem crescente de start_time
     });
 
-    for(int i = 0; i < quantidade_processos; i++){
-        programa[i].id = i + 1;
-        for(int j = 0; j < programa[i].numero_paginas; j++){
-            adiciona_pg(&programa, i, j, 0, true); //Como todos os processos ficam como novo juntos,
-                                        // Todos possuem o tempo de paginação como 0.
+    // Atribui IDs aos processos e inicializa as páginas para cada processo
+    for(int i = 0; i < SO.quantidade_de_processos; i++) {
+        programa[i].id = i + 1;  // Atribui o ID (começando de 1)
+        for(int j = 0; j < programa[i].numero_paginas; j++) {
+            // Adiciona páginas aos processos (tempo de paginação inicial é 0 para todos)
+            adiciona_pg(SO, i, j, true); 
         }
     }
 
-    return programa;
+    return programa;  // Retorna o vetor de processos inicializados
 }
 
-pagina *cria_pg(){
-    pagina *nova_pg = new pagina;
-    return nova_pg;
-}
-
-void adiciona_pg(vector<processos> *programa, int process_id ,int page_id, int time, bool inicializacao){
-    pagina *aux = cria_pg();
-    endereco adress = procura_espaco_na_RAM(programa, process_id, page_id,time, inicializacao);
-    aux->adress = adress.adress;
-    aux->id = page_id;
-    aux->presente = adress.pertence == 1 ? true : false;
-    aux->ultimo_acesso = time;
-    (*programa)[process_id].Tabela_paginacao.push_back(aux);
-    cout << "Pagina " << page_id + 1 << " do processo " << process_id + 1 << " criada com sucesso!" << endl;
-}
-
-void insere_valor(int RAM_adress, int mem_sec_adress, bool inicializacao){
-    vector<int> aux(PG_LENGTH);
-    for(int pos = 0; pos < (int)PG_LENGTH; pos++){
-        aux[pos] = Memoria_Principal[RAM_adress + pos];
-        if(inicializacao){
-            srand(time(0));
-            Memoria_Principal[RAM_adress + pos] = rand();
-        }
-        else{
-            Memoria_Principal[RAM_adress + pos] = Memoria_Secundaria[mem_sec_adress + pos];
-        }
-    }
-}
-
-endereco page_fault(vector<processos> *programa, int process_id, int page_id,int tempo, bool inicializacao){
-    int flag = 0;
-    endereco pos;
-    pos.pertence = 0;
-    cout << "Tentando achar um espaco livre" << endl;
-    for(int i = 0; i < (int)(*programa).size(); i++){
-        if(process_id != i){
-            for(int j = 0; j < (int)(*programa)[i].numero_paginas; j++){
-                if((*programa)[i].Tabela_paginacao[j]->ultimo_acesso < tempo){
-                    pos.adress = (*programa)[i].Tabela_paginacao[j]->adress;
-                    pos.pertence = 1;
-                    flag = 1;
-                    insere_valor(pos.adress,(*programa)[process_id].Tabela_paginacao[page_id]->adress, inicializacao);
-                    return pos;
-                }
-            }
-        }
-    }
-    cout << "Nao foi encontrado um local na RAM que tenha vindo antes de " << tempo << endl;
-    if(!flag){
-        if(inicializacao){
-            pos.adress = Memoria_Secundaria.size();
-            for(int i = 0; i < PG_LENGTH; i++){
-                srand(time(0));
-                Memoria_Secundaria.push_back(rand());
-            }
-        }
-    }
-    return pos;
-}
-
-endereco procura_espaco_na_RAM(vector<processos> *programa, int process_id, int page_id,int tempo, bool inicializacao){
-    int toda_mem_usada = 63; // 1 + 2 + 4 + 8 + 16 + 32, que seria o valor 000..00111111
-    endereco espaco;
-    cout << "Procurando espaco na memoria RAM" << endl;
-    if(toda_mem_usada != mem_usada){
-        for(int i = 0; i < 6; i++){
-            if(!(mem_usada & (1 << i))){
-                cout << "A memoria RAM ainda possui um espaco vazio" << endl;
-                mem_usada |= (1 << i);
-                espaco.adress = i * PG_LENGTH;
-                espaco.pertence = 1; //Espaço na RAM
-                return espaco;
-            }
-        }
-    }
-    cout << "Memoria RAM ja esta cheia..." << endl;
-    espaco = page_fault(programa, process_id, page_id, tempo, inicializacao);
-    cout << "Foi retornado um endereco de memoria" << endl;
-    return espaco;
-}
-
-void acessa_memoria(vector<processos> *programa, int process_id, int tempo){
-    int quant_pgs = (*programa)[process_id].Tabela_paginacao.size();
+// Função para finalizar um processo
+void finaliza_process(SistemaOperacional &SO, int &flag, int pos) {
+    // Marca o tempo final do processo
+    SO.programa[pos].end_time = SO.tempo_atual;
     
-    int pgs_acessadas = rand() % quant_pgs + 1; //Quantidade de paginas que o processo vai acessar
-    for(int i = 0; i < pgs_acessadas; i++){
-        if((*programa)[process_id].Tabela_paginacao[i]->presente){
-            cout << "Lendo o item na RAM" << endl;
-            for(int j = 0; j < PG_LENGTH; j++){
-                // Simula a leitura das informações salvas na RAM
-                int leitura = Memoria_Principal[(*programa)[process_id].Tabela_paginacao[i]->adress + j];
-            }
+    // Calcula o Turnaround Time (tat) e o Waiting Time (wt) do processo
+    SO.escalona.tat[pos] = SO.tempo_atual - SO.programa[pos].start_time;
+    SO.escalona.wt[pos] = SO.escalona.tat[pos] - SO.programa[pos].duracao;
+
+    // Remove as páginas alocadas para o processo da tabela de paginação
+    for(int i = 0; i < SO.programa[pos].numero_paginas; i++) {
+        if(SO.programa[pos].Tabela_paginacao.back()->presente) {
+            // Imprime a página removida e ajusta o uso da memória
+            cout << "Removendo pagina " << SO.programa[pos].Tabela_paginacao.back()->id
+            << " do adress: " << SO.programa[pos].Tabela_paginacao.back()->adress / SO.memoria.PG_LENGTH << endl;
+            
+            // Marca a página como não utilizada na memória
+            SO.memoria.mem_usada ^= (1 << SO.programa[pos].Tabela_paginacao.back()->adress / SO.memoria.PG_LENGTH); 
         }
-        else{
-            cout << "A memória RAM nao contem a pagina desejada..." << endl;
-            endereco espaco = page_fault(programa, process_id, i, tempo, false);
-            (*programa)[process_id].Tabela_paginacao[i]->adress = espaco.adress;
-            (*programa)[process_id].Tabela_paginacao[i]->presente = espaco.pertence;
-        }
+        SO.programa[pos].Tabela_paginacao.pop_back();  // Remove a página da tabela
     }
-}
 
-void define_espaco_recursos(vector<int> *recurso, int max){
-    if(max == 4) srand(time(0));
-    for(int i = 0; i < (int)quantidade_de_recursos; i++){
-        (*recurso).push_back(3 + rand() % max);
-        if((*recurso)[i] > recursos[i])((*recurso)[i] = recursos[i]);
-    }
-}
-
-void inicializa_recursos_processos(processos *novo){
-    define_espaco_recursos(&(*novo).recursos, 7);
-    cout << "Quantidade por recurso utilizada do processo eh: ( " << (*novo).recursos[0];
-    for(int i = 0; i < (int)quantidade_de_recursos; i++){
-        define_tempo_recursos(&(*novo).tempo_recursos, i, (*novo).recursos[i],(*novo).duracao, (*novo).start_time);
-        (*novo).alocado.push_back(0);
-        (*novo).solicitados.push_back(0); 
-        (*novo).precisa.push_back((*novo).recursos[i] - (*novo).alocado.back());
-        if(i != 0) cout << " , " << (*novo).recursos[i];
-    }
-    cout << " )" << endl;
-    sort((*novo).tempo_recursos.begin(), (*novo).tempo_recursos.end(), [] (tempo_recurso a, tempo_recurso b) {
-        return a.inicio_esperado < b.inicio_esperado;
-    });
-}
-
-void define_tempo_recursos(vector<tempo_recurso> *tempos, int recurso, int quant_a_alocar,int duracao_process, int inicio_process){
-    tempo_recurso aux;
-    aux.recurso = recurso;
-    while(quant_a_alocar != 0){
-        aux.inicio_definitivo = -1;
-        aux.inicio_esperado = inicio_process + rand() % (duracao_process);
-        int tempo_que_ele_pode_rodar = duracao_process - (aux.inicio_esperado - inicio_process);
-        aux.duracao = rand() % ((tempo_que_ele_pode_rodar) / 3 + 2);
-        (*tempos).push_back(aux);
-        quant_a_alocar--;
-    }
+    // Adiciona o processo à ordem de saída e marca como finalizado
+    SO.ordem_de_saida.push_back(SO.programa[pos]);
+    SO.programa[pos].estado = "Finalizado";
     
+    // Define a flag como 0 para indicar que o processo foi finalizado
+    flag = 0;
+
+    // Libera os recursos que estavam sendo utilizados pelo processo
+    vector<int> liberado = recursos_encerrados(SO, 0, pos, true);
+    cout << "Quantidade por recurso liberada do Processo " << (SO.programa)[pos].id << ": ";
+    for(int i = 0; i < SO.quantidade_de_recursos; i++) {
+        cout << " " << liberado[i];  // Imprime a quantidade de recursos liberados
+    }
+    cout << endl;
+}
+
+// Função para suspender um processo
+void suspende_process(SistemaOperacional &SO, int pos) {
+    // Coloca o processo na fila do escalonador
+    SO.escalona.fila.push(&SO.programa[pos]);
+    // Marca o processo como suspenso
+    SO.programa[pos].estado = "Suspenso";
+    
+    // Adiciona o processo à ordem de saída, mesmo que não tenha finalizado
+    SO.ordem_de_saida.push_back(SO.programa[pos]);
+}
+
+// Função auxiliar para imprimir resultados em formato específico
+void print(string texto, vector<int> resultado, int id) {
+    cout << texto << id << ":";  // Imprime o texto junto com o ID
+    for(const auto& valor : resultado) 
+        cout << " " << valor;  // Imprime os valores do vetor de resultados
+    cout << endl;  // Finaliza a impressão com uma nova linha
 }

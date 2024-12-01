@@ -1,136 +1,112 @@
 #include "Scheduler.h"
+#include "OS.h"
 #include "Resource_manager.h"
+#include "Process_manager.h"
+#include "Paging.h"
 #include "Mensage_manager.h"
 
-void executa(int quantum, int *tempo_restante, vector<processos> *process, escalonador *escalona, int pos, int *tempo_atual){
-    int execucao = min(quantum, *tempo_restante);
+void RR(SistemaOperacional &SO){
+    int aux, pos = 0, flag = 1;
     
-    vector<int> liberado = recursos_encerrados(process, execucao, pos, false, &(*escalona).tempo_restante[pos]);
-    cout << "Quantidade por recurso liberada do Processo " << (*process)[pos].id << ": ";
-    for(int i = 0; i < quantidade_de_recursos; i++){
-        cout << " " << liberado[i];
+    // Inicializa o tempo do sistema com o tempo de início do primeiro processo
+    SO.tempo_atual += SO.programa[pos].start_time;
+
+    // Coloca o primeiro processo na fila de pronto
+    SO.escalona.fila.push(&SO.programa[pos]);
+    SO.programa[pos].estado = "Pronto";
+    
+    cout << "Processo " << SO.programa[pos++].id << " esta Pronto...\n";
+
+    // Enquanto houver processos na fila ou processos a serem adicionados
+    while(!SO.escalona.fila.empty() || pos != (int) SO.programa.size()){
+        aux = SO.escalona.fila.front()->id - 1;  // Obtém o índice do processo
+        SO.escalona.fila.pop();  // Remove o processo da fila
+
+        executa(SO, pos);  // Executa o processo
+
+        // Se o tempo restante do processo for zero, finaliza o processo
+        if(SO.escalona.tempo_restante[aux] == 0) finaliza_process(SO, flag, aux);
+        
+        // Adiciona novos processos à fila conforme o tempo atual
+        adiciona_process_na_fila(SO, pos, flag);
+
+        // Suspende o processo se necessário
+        if(flag) suspende_process(SO, aux);
+        else flag = 1;
     }
-    cout << endl;
 
-    marca_solicitacoes(process, (*tempo_atual), execucao, pos);
-    cout << "Vetor de solicitados do Processo " << (*process)[pos].id << ":";
-    for(int i = 0; i < quantidade_de_recursos; i++){
-        cout << " " << (*process)[pos].solicitados[i];
+    // Imprime os resultados após a execução dos processos
+    cout << endl << "   Resultados: " << endl;
+    cout << "-----------------------------" << endl;
+    cout << "Tempo levado para executar o programa: " << SO.tempo_atual << endl;
+    for(int i = 0; i < (int)SO.programa.size(); ++i){
+        cout << "Waiting: "<< SO.escalona.wt[i] << " || " << "Tat: " << SO.escalona.tat[i] << endl;
     }
-    cout << endl;
+} 
 
-    if (novo_recurso(process, *tempo_atual, &((*process)[pos]))){
-        cout << "Processo " << (*process)[pos].id << " alocando recurso " << endl;
-        for(auto& recursos : (*process)[pos].tempo_recursos){
-            if(recursos.inicio_definitivo == -2){
-                if(recursos.inicio_esperado <= (*tempo_atual)) recursos.inicio_definitivo = execucao;
-                else recursos.inicio_definitivo = (*tempo_atual) + execucao - recursos.inicio_esperado;
-            }
+void adiciona_process_na_fila(SistemaOperacional &SO, int &pos, int flag){
+    for(int i = pos; i < (int)SO.programa.size(); ++i){
+        // Se o tempo de início do processo for menor ou igual ao tempo atual
+        if(SO.programa[i].start_time <= SO.tempo_atual){
+            SO.escalona.fila.push(&SO.programa[i]);  // Adiciona o processo à fila de pronto
+            SO.programa[i].estado = "Pronto";  // Define o estado como "Pronto"
+            cout << "Processo " << SO.programa[i].id << " esta Pronto...\n";
+            pos++;
         }
-        cout << "Recursos restantes:";
-        for(int i = 0; i < quantidade_de_recursos; i++){
-            cout << " " << recursos[i];
+        else{
+            // Se a fila estiver vazia e o flag não estiver ativo, ajusta o tempo atual
+            if(SO.escalona.fila.empty() && !flag) SO.tempo_atual = SO.programa[i--].start_time;
+            else break;
         }
-        cout << endl;
+    }
+}
 
+void executa(SistemaOperacional &SO, int pos){
+    // Determina o tempo de execução baseado no quantum ou no tempo restante
+    int execucao = min(SO.quantum, SO.escalona.tempo_restante[pos]);
 
-        *tempo_restante -= execucao;
-        (*process)[pos].estado = "Executando";
-        for(int i = 0; i < execucao * 1000000; i++); //simula o Sleep
+    // Obtém os recursos liberados após a execução
+    vector<int> liberado = recursos_encerrados(SO, execucao, pos, false);
+    
+    // Imprime a quantidade de recursos liberados
+    print("Quantidade por recurso liberada do Processo ", liberado, SO.programa[pos].id);
 
-        mem_comp(*process, *escalona, pos);
-        //pipe(process, escalona, pos);
+    // Marca as solicitações de recursos do processo
+    marca_solicitacoes(SO, execucao, pos);
 
-        //parte que envolve a memória do nosso processo
+    // Imprime as solicitações de recursos
+    print("Vetor de solicitados do Processo ", SO.programa[pos].recurso.solicitados, SO.programa[pos].id );
+
+    // Se o processo precisa de novos recursos, tenta alocá-los
+    if (novo_recurso(SO, &(SO.programa[pos]))){
+        // Atualiza o início definitivo do processo com o tempo de execução
+        atualizaInicioDefinitivo(SO, pos, execucao);
+
+        // Imprime o estado atual dos recursos
+        print("Recursos restantes:", SO.recursos, 0);
+
+        // Atualiza o tempo restante do processo
+        SO.escalona.tempo_restante[pos] -= execucao;
+        SO.programa[pos].estado = "Executando";  // Marca o processo como "Executando"
+
+        // Simula o tempo de execução (equivalente a um "sleep")
+        for(int i = 0; i < execucao * 1000000; i++);
+
+        // Realiza operações de memória durante a execução do processo
+        mem_comp(SO, pos);
         cout << "Acessando memoria" << endl;
-        acessa_memoria(process, pos, *tempo_restante);
-        cout << "Adicionando pagina para o processo " << (*process)[pos].id << endl;
-        //adiciona_pg(process, pos, (int)(*process)[pos].Tabela_paginacao.size() - 1, *tempo_restante, false);
+        acessa_memoria(SO, pos);
+        cout << "Adicionando pagina para o processo " << SO.programa[pos].id << endl;
 
-        *tempo_atual += execucao;
+        // Atualiza o tempo atual após a execução
+        SO.tempo_atual += execucao;
         cout << endl << endl;
     }
     else{
-        cout << "Processo " << (*process)[pos].id << " nao conseguiu alocar recurso" << endl;
+        // Se o processo não conseguiu alocar os recursos, exibe uma mensagem
+        cout << "Processo " << SO.programa[pos].id << " nao conseguiu alocar recurso" << endl;
     }
-    //liberado = recursos_encerrados(process, execucao, pos);
-    cout << "Vetor de alocados do Processo " << (*process)[pos].id << ":";
-    for(int i = 0; i < quantidade_de_recursos; i++){
-        cout << " " << (*process)[pos].alocado[i];
-    }
-    cout << endl;
+
+    // Imprime os recursos alocados ao processo
+    print("Vetor de alocados do Processo ", SO.programa[pos].recurso.alocado, SO.programa[pos].id);
 }
-
-vector<processos> RR(vector<processos> &programa, int quantum){
-    int tempo_atual = 0, aux, pos = 0, flag = 1;
-    escalonador escalona(programa.size(), programa);
-    vector<processos> saida;
-    vector<processos*> nucleos(quantidade_de_nucleos);
-
-    tempo_atual += programa[pos].start_time;
-    escalona.fila.push(&programa[pos]);
-    programa[pos].estado = "Pronto";
-    cout << "Processo " << programa[pos++].id << " esta Pronto...\n";
-
-    while(!escalona.fila.empty() || pos != (int) programa.size()){
-
-        aux = escalona.fila.front()->id - 1;
-        escalona.fila.pop();
-        executa(quantum, &escalona.tempo_restante[aux], &programa, &escalona, aux, &tempo_atual);
-
-        if(escalona.tempo_restante[aux] == 0){
-            programa[aux].end_time = tempo_atual;
-            escalona.tat[aux] = tempo_atual - programa[aux].start_time;
-            escalona.wt[aux] = escalona.tat[aux] - programa[aux].duracao;
-            for(int i = 0; i < programa[aux].numero_paginas; i++){
-                if(programa[aux].Tabela_paginacao.back()->presente){
-                    cout << "Removendo pagina " << programa[aux].Tabela_paginacao.back()->id
-                    << " do adress: " << programa[aux].Tabela_paginacao.back()->adress / PG_LENGTH << endl;
-                    mem_usada ^= (1 << programa[aux].Tabela_paginacao.back()->adress / PG_LENGTH); 
-                    
-                }
-                programa[aux].Tabela_paginacao.pop_back();
-            }
-            saida.push_back(programa[aux]);
-            programa[aux].estado = "Finalizado";
-            flag = 0;
-
-            vector<int> liberado = recursos_encerrados(&programa, 0, aux, true, &(escalona.tempo_restante[aux]));
-            cout << "Quantidade por recurso liberada do Processo " << (programa)[aux].id << ": ";
-            for(int i = 0; i < quantidade_de_recursos; i++){
-                cout << " " << liberado[i];
-            }
-            cout << endl;
-        }
-
-        for(int i = pos; i < (int)programa.size(); ++i){
-            if(programa[i].start_time <= tempo_atual){
-                escalona.fila.push(&programa[i]);
-                programa[i].estado = "Pronto";
-                cout << "Processo " << programa[i].id << " esta Pronto...\n";
-                pos++;
-            }
-            else{
-                if(escalona.fila.empty() && !flag) tempo_atual = programa[i--].start_time;
-                else break;
-            }
-        }
-
-        if(flag){
-            escalona.fila.push(&programa[aux]);
-            programa[aux].estado = "Suspenso";
-            saida.push_back(programa[aux]);
-        }
-        else flag = 1;
-        
-    }
-
-    cout << endl << "   Resultados: " << endl;
-    cout << "-----------------------------" << endl;
-    cout << "Tempo levado para executar o programa: " << tempo_atual << endl;
-    for(int i = 0; i < (int)programa.size(); ++i){
-        cout << "Waiting: "<< escalona.wt[i] << " || " << "Tat: " << escalona.tat[i] << endl;
-    }
-    return saida;
-} 
-
